@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>Inder Hunter: Evolution</title>
+        <script src="js/main.js" defer></script>
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <canvas id="india"></canvas>
+
+        <div id="overlay">
+            <div id="war-utilities">
+                <div id="stats">
+                    <div>Geld: <span><span id="money">0</span>€</span></div>
+                </div>
+
+                <div id="utilities-shop">
+                    <div id="shop-container">
+
+                    </div>
+                    <div id="expander" onclick="toggle_shop()">
+                        <img id="open-icon" src="media/right.svg" alt="Öffnen" srcset="media/right.svg">
+                        <img id="close-icon" src="media/left.svg" alt="Schließen" srcset="media/left.svg">
+                    </div>
+                </div>
+            </div>
+
+            <div id="debug">
+                <button onclick="reset_variables()">reset vars</button>
+            </div>
+
+            <div id="date">
+                <span id="date-text"></span>
+
+                <div id="day-progression-wrapper">
+                    <div id="day-progression" style="width: 0"></div>
+                </div>
+                <div id="time-control">
+                    <button id="pause-button" onclick="pause_game()"><img src="media/pause.svg" alt="Pausieren" srcset="media/pause.svg"></button>
+                    <button id="unpause-button" onclick="unpause_game()" disabled><img src="media/play.svg" alt="Weiterführen" srcset="media/play.svg"></button>
+                    <button id="normal-time-button" onclick="change_time_speed(1)" disabled>1x</button>
+                    <button id="double-time-button" onclick="change_time_speed(2)">2x</button>
+                    <button id="tenfold-time-button" onclick="change_time_speed(10)">10x</button>
+                </div>
+            </div>
+
+            <div id="indians">
+                <div>
+                   <span> Verbleibende Gegner: </span><span id="population"></span>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

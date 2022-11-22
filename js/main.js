@@ -24,7 +24,7 @@ function draw_india(ctx, xoff, yoff, xmul, ymul) {
 
     // background
     ctx.fillStyle = '#559f19';
-    ctx.beginPath()
+    ctx.beginPath();
     ctx.lineTo(0 + xoff, 0 + yoff);
     ctx.lineTo(0 + xoff, 195 * ymul + yoff);
     ctx.lineTo(29 * xmul + xoff, 226 * ymul + yoff);
@@ -48,7 +48,7 @@ function draw_india(ctx, xoff, yoff, xmul, ymul) {
     ctx.fill();
 
     // sri lanka
-    ctx.beginPath()
+    ctx.beginPath();
     ctx.lineTo(228 * xmul + xoff, 465 * ymul + yoff);
     ctx.lineTo(226 * xmul + xoff, 483 * ymul + yoff);
     ctx.lineTo(222 * xmul + xoff, 494 * ymul + yoff);
@@ -65,7 +65,7 @@ function draw_india(ctx, xoff, yoff, xmul, ymul) {
 
     // india
     ctx.fillStyle = '#c07c46';
-    ctx.beginPath()
+    ctx.beginPath();
     ctx.lineTo(128 * xmul + xoff, 25 * ymul + yoff);
     ctx.lineTo(130 * xmul + xoff, 35 * ymul + yoff);
     ctx.lineTo(129 * xmul + xoff, 41 * ymul + yoff);
@@ -207,14 +207,18 @@ let saved_variables = {
     datetime:   0,
     population: 0,
     money:      0,
+    inventory:  '{"0":0}',
 };
 
 function reset_variables() {
     const current_date       = new Date().getTime();
     saved_variables.datetime = current_date;
+
     localStorage.setItem('datetime', current_date.toString());
     localStorage.setItem('population', '1412310691');
     localStorage.setItem('money', '1500000');
+    localStorage.setItem('inventory', '{"0":0}');
+
     window.location.reload();
 }
 
@@ -260,6 +264,10 @@ const money_element           = document.querySelector('#money');
 const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'July', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 const days   = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
+function update_money() {
+    money_element.innerHTML = parseInt(saved_variables.money.toString()).toLocaleString('de-DE');
+}
+
 let day_tick = () => {
     const new_date        = new Date(parseInt(saved_variables.datetime.toString()) + (60 * 60 * 24 * 1000));
     let variables_to_save = ['datetime', 'population'];
@@ -276,7 +284,7 @@ let day_tick = () => {
 
     date_text_element.innerHTML  = days[new_date.getDay()] + ', ' + new_date.getDate() + '. ' + months[new_date.getMonth()] + ' ' + new_date.getUTCFullYear();
     population_element.innerHTML = parseInt(saved_variables.population.toString()).toLocaleString('de-DE');
-    money_element.innerHTML      = parseInt(saved_variables.money.toString()).toLocaleString('de-DE');
+    update_money();
 };
 
 let seconds = 0;
@@ -377,8 +385,167 @@ const shop_element = document.querySelector('#utilities-shop');
 
 function toggle_shop() {
     if (shop_element.classList.contains('open')) {
-        shop_element.classList.remove('open')
+        shop_element.classList.remove('open');
     } else {
         shop_element.classList.add('open');
     }
+}
+
+let cart = [];
+
+const shop_item_container_element = document.querySelector('#shop-item-container');
+
+const shop_items = [
+    {
+        name:  'Soldaten',
+        price: 1000000,
+    }
+];
+
+for (let id = 0; id < shop_items.length; id++) {
+    const shop_item = shop_items[id];
+
+    shop_item_container_element.innerHTML += `
+        <div class="shop-item" data-id="` + id + `">
+            <div class="count"></div>
+            <div>` + shop_item.name + `</div>
+            <div>` + shop_item.price.toLocaleString('de-DE') + `€</div>
+        </div>
+    `;
+}
+
+const shop_item_elements     = document.querySelectorAll('.shop-item');
+const shop_clear_cart_button = document.querySelector('#clear-cart');
+
+for (const shop_item_element of shop_item_elements) {
+    shop_item_element.addEventListener('contextmenu', event => {
+        event.preventDefault();
+    });
+
+    shop_item_element.addEventListener('mousedown', event => {
+        const count_element       = shop_item_element.querySelector('.count');
+        const target_shop_item_id = shop_item_element.dataset.id;
+
+        if (!count_element) {
+            return;
+        }
+
+        if (event.button === 0) {
+            cart.push(target_shop_item_id);
+
+            count_element.innerHTML = (parseInt(count_element.innerHTML || 0) + 1).toString() + 'x';
+        }
+
+        if (event.button === 2 && cart.includes(target_shop_item_id)) {
+            const next_amount = parseInt(count_element.innerHTML || 0) - 1;
+
+            cart.splice(cart.lastIndexOf(target_shop_item_id), 1);
+
+            if (next_amount) {
+                count_element.innerHTML = next_amount.toString() + 'x';
+            } else {
+                count_element.innerHTML = '';
+            }
+        }
+    });
+}
+
+const cart_amount_element         = document.querySelector('#cart-amount');
+const purchase_cart_element       = document.querySelector('#purchase-cart');
+const cart_amount_wrapper_element = document.querySelector('#cart-amount-wrapper');
+
+let old_cart = [];
+
+setInterval(() => {
+    if (cart !== old_cart) {
+        let total_amount = 0;
+
+        for (const shop_item_id of cart) {
+            total_amount += shop_items[shop_item_id].price;
+        }
+
+        if (total_amount && shop_clear_cart_button.style.display !== 'inline') {
+            shop_clear_cart_button.style.display = 'inline';
+        }
+
+        if (total_amount > saved_variables.money) {
+            cart_amount_wrapper_element.classList.add('insufficient-funds');
+        } else if (cart_amount_wrapper_element.classList.contains('insufficient-funds')) {
+            cart_amount_wrapper_element.classList.remove('insufficient-funds');
+        }
+
+        purchase_cart_element.disabled = !total_amount || total_amount > saved_variables.money;
+        cart_amount_element.innerHTML  = total_amount.toLocaleString('de-DE') + '€';
+
+        // fuck JS for this.
+        Object.assign(old_cart, cart);
+    }
+}, 250);
+
+function clear_cart() {
+    shop_clear_cart_button.style.display = 'none';
+
+    for (const shop_item_element of shop_item_elements) {
+        shop_item_element.querySelector('.count').innerHTML = '';
+    }
+
+    cart = [];
+}
+
+function get_inventory() {
+    return JSON.parse(saved_variables.inventory);
+}
+
+function set_inventory(new_inventory) {
+    saved_variables.inventory = JSON.stringify(new_inventory);
+
+    save_variables('inventory');
+}
+
+function change_inventory_item_amount(item_id, amount = 1) {
+    let inventory = get_inventory();
+
+    inventory[item_id] += amount;
+
+    set_inventory(inventory);
+}
+
+function purchase_items_in_cart() {
+    if (!cart.length) {
+        return;
+    }
+
+    let funds_needed = 0;
+
+    let purchased_items = {};
+
+    for (const item_id of cart) {
+        if (!shop_items.hasOwnProperty(item_id)) {
+            continue;
+        }
+
+        if (!purchased_items.hasOwnProperty(item_id)) {
+            purchased_items[item_id] = 0;
+        }
+
+        purchased_items[item_id]++;
+        funds_needed += shop_items[item_id].price;
+    }
+
+    if (!funds_needed || funds_needed > saved_variables.money) {
+        return;
+    }
+
+    for (const purchased_item_id in purchased_items) {
+        if (!purchased_items.hasOwnProperty(purchased_item_id)) {
+            continue;
+        }
+
+        change_inventory_item_amount(purchased_item_id, purchased_items[purchased_item_id]);
+    }
+
+    saved_variables.money -= funds_needed;
+    save_variables('money');
+    clear_cart();
+    update_money();
 }

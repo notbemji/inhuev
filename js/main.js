@@ -7,16 +7,59 @@ class Town {
     }
 }
 
+class ActiveItem {
+    constructor(shop_item, x, y) {
+        this.shop_item   = shop_item;
+        this.x           = x;
+        this.y           = y;
+        this.current_day = this.shop_item.days;
+    }
+
+    draw() {
+        const opacity_fraction = parseFloat(((this.current_day - 1) + (1 - (day_progression_percent * 0.01))).toFixed(2));
+
+        if (!opacity_fraction) {
+            return;
+        }
+
+        india_context.fillStyle = 'rgba(230, 0, 0, ' + opacity_fraction / this.shop_item.days + ')';
+        india_context.beginPath();
+        india_context.arc(this.x, this.y, get_item_radius(this.shop_item), 0, 2 * Math.PI, false);
+        india_context.fill();
+    }
+
+    tick() {
+        if (this.current_day < 1) {
+            const index_in_active_items_array = active_items.indexOf(this);
+
+            if (index_in_active_items_array !== -1) {
+                active_items.splice(index_in_active_items_array, 1);
+            }
+
+            return;
+        }
+
+        saved_variables.population = (parseInt(saved_variables.population) - this.shop_item.kpd).toString();
+        save_variables('population');
+
+        this.current_day--;
+    }
+}
+
 const india_canvas  = document.querySelector('#india');
 const india_context = india_canvas.getContext('2d');
 
-let cursor             = {x: 0, y: 0};
-let towns              = [];
-let game_paused        = false;
-let time_speed_divisor = 1;
+let cursor                   = {x: 0, y: 0};
+let towns                    = [];
+let game_paused              = false;
+let time_speed_divisor       = 1;
+let selected_inventory_item  = 0;
+let active_items             = []
+let cursor_in_india          = false;
+let calculated_target_radius = 0;
+let day_progression_percent = 0;
 
 towns.push(new Town('Delhi', 100, 183, 139));
-
 
 function draw_india(ctx, xoff, yoff, xmul, ymul) {
     ctx.clearRect(0, 0, india_canvas.clientWidth, india_canvas.clientHeight);
@@ -175,7 +218,9 @@ function draw_india(ctx, xoff, yoff, xmul, ymul) {
     ctx.closePath();
     ctx.fill();
 
-    if (ctx.isPointInPath(cursor.x, cursor.y)) {
+    cursor_in_india = ctx.isPointInPath(cursor.x, cursor.y);
+
+    if (cursor_in_india) {
         ctx.strokeStyle = '#ff0000';
         ctx.lineWidth   = 4;
         ctx.stroke();
@@ -189,14 +234,49 @@ function draw_india(ctx, xoff, yoff, xmul, ymul) {
         ctx.fillStyle = '#ffffff';
         ctx.fillText(town.name, (town.x + 4) * xmul + xoff, (town.y + 8) * ymul + yoff);
     }
+
+    if (shop_items.hasOwnProperty(selected_inventory_item) && cursor_in_india && get_inventory()[selected_inventory_item]) {
+        const shop_item = shop_items[selected_inventory_item];
+
+        calculated_target_radius = get_item_radius(shop_item);
+
+        ctx.fillStyle = 'rgba(230, 0, 0, 0.5)';
+        ctx.beginPath();
+        ctx.arc(cursor.x, cursor.y, calculated_target_radius, 0, 2 * Math.PI, false);
+        ctx.fill();
+    }
+
+    for (const active_item of active_items) {
+        active_item.draw();
+    }
 }
+
+india_canvas.addEventListener('mousedown', event => {
+    if (event.button === 0) {
+        if (shop_items.hasOwnProperty(selected_inventory_item) && cursor_in_india) {
+            const shop_item = shop_items[selected_inventory_item];
+
+            const copied_cursor = {x: 0, y: 0};
+            Object.assign(copied_cursor, cursor);
+
+            let inventory = get_inventory();
+
+            inventory[selected_inventory_item]--;
+
+            set_inventory(inventory);
+            update_inventory();
+
+            active_items.push(new ActiveItem(shop_item, copied_cursor.x, copied_cursor.y));
+        }
+    }
+});
 
 india_canvas.height = document.body.clientHeight - 10;
 india_canvas.width  = document.body.clientWidth;
 
 const size_multiplier = 1.5;
 
-setInterval(() => draw_india(india_context, (document.body.clientWidth / 2) - 400, 0, size_multiplier, size_multiplier), 250);
+setInterval(() => draw_india(india_context, (document.body.clientWidth / 2) - 400, 0, size_multiplier, size_multiplier), 150);
 
 india_canvas.addEventListener('mousemove', event => {
     cursor.x = event.clientX;
@@ -207,7 +287,7 @@ let saved_variables = {
     datetime:   0,
     population: 0,
     money:      0,
-    inventory:  '{"0":0}',
+    inventory:  '{"0":0,"1":0,"2":0}',
 };
 
 function reset_variables() {
@@ -217,7 +297,7 @@ function reset_variables() {
     localStorage.setItem('datetime', current_date.toString());
     localStorage.setItem('population', '1412310691');
     localStorage.setItem('money', '1500000');
-    localStorage.setItem('inventory', '{"0":0}');
+    localStorage.setItem('inventory', '{"0":0,"1":0,"2":0}');
 
     window.location.reload();
 }
@@ -273,7 +353,7 @@ let day_tick = () => {
     let variables_to_save = ['datetime', 'population'];
 
     saved_variables.datetime   = new_date.getTime();
-    saved_variables.population = parseInt(saved_variables.population) + Math.floor(40680 * (Math.random() * (1 - 0.3) + 0.3));
+    saved_variables.population = parseInt(saved_variables.population) + Math.floor(40680 * (Math.random() * (1.3 - 0.3) + 0.3));
 
     if (new_date.getDate() === 1) {
         saved_variables.money = parseInt(saved_variables.money) + 250000;
@@ -282,12 +362,14 @@ let day_tick = () => {
 
     save_variables(variables_to_save);
 
+    for (const active_item of active_items) {
+        active_item.tick();
+    }
+
     date_text_element.innerHTML  = days[new_date.getDay()] + ', ' + new_date.getDate() + '. ' + months[new_date.getMonth()] + ' ' + new_date.getUTCFullYear();
     population_element.innerHTML = parseInt(saved_variables.population.toString()).toLocaleString('de-DE');
     update_money();
 };
-
-let seconds = 0;
 
 let tick = () => {
     const day_progression_has_fast_class = day_progression_element.classList.contains('fast-af');
@@ -299,16 +381,16 @@ let tick = () => {
         return;
     }
 
-    if (seconds >= 100) {
-        seconds = 0;
+    if (day_progression_percent >= 100) {
+        day_progression_percent = 0;
 
         day_tick();
     } else {
-        seconds++;
+        day_progression_percent++;
     }
 
     if (!day_progression_has_fast_class) {
-        day_progression_element.style.width = seconds + '%';
+        day_progression_element.style.width = day_progression_percent + '%';
     } else {
         day_progression_element.style.animationPlayState = 'running';
     }
@@ -399,8 +481,26 @@ const shop_items = [
     {
         name:  'Soldaten',
         price: 1000000,
+        kpd:   45000,
+        days:  7,
+    },
+    {
+        name:  'Kampfhubschrauber',
+        price: 2500000,
+        kpd:   90000,
+        days:  4,
+    },
+    {
+        name:  'Atombombe',
+        price: 100000000,
+        kpd:   900000,
+        days:  14,
     }
 ];
+
+function get_item_radius(shop_item) {
+    return 20 * (shop_item.kpd / 50000);
+}
 
 for (let id = 0; id < shop_items.length; id++) {
     const shop_item = shop_items[id];
@@ -433,7 +533,7 @@ for (const shop_item_element of shop_item_elements) {
         if (event.button === 0) {
             cart.push(target_shop_item_id);
 
-            count_element.innerHTML = (parseInt(count_element.innerHTML || 0) + 1).toString() + 'x';
+            count_element.innerHTML = (parseInt(count_element.innerHTML || 0) + 1).toString();
         }
 
         if (event.button === 2 && cart.includes(target_shop_item_id)) {
@@ -442,7 +542,7 @@ for (const shop_item_element of shop_item_elements) {
             cart.splice(cart.lastIndexOf(target_shop_item_id), 1);
 
             if (next_amount) {
-                count_element.innerHTML = next_amount.toString() + 'x';
+                count_element.innerHTML = next_amount.toString();
             } else {
                 count_element.innerHTML = '';
             }
@@ -548,4 +648,40 @@ function purchase_items_in_cart() {
     save_variables('money');
     clear_cart();
     update_money();
+    update_inventory();
 }
+
+const inventory_item_container_element = document.querySelector('#inventory');
+
+function update_inventory() {
+    const inventory = get_inventory();
+
+    inventory_item_container_element.innerHTML = '';
+
+    for (const inventory_item_id in inventory) {
+        if (!inventory.hasOwnProperty(inventory_item_id)) {
+            continue;
+        }
+
+        inventory_item_container_element.innerHTML += `
+            <div class="inventory-item` + (selected_inventory_item.toString() === inventory_item_id.toString() ? ' selected' : '') + `" data-id="` + inventory_item_id + `">
+                <div class="stock">` + inventory[inventory_item_id] + `</div>
+                <div class="name">` + shop_items[inventory_item_id].name + `</div>
+            </div>
+        `;
+    }
+
+    for (const inventory_item_element of inventory_item_container_element.querySelectorAll('.inventory-item')) {
+        inventory_item_element.addEventListener('mousedown', event => {
+            if (event.button !== 0 || selected_inventory_item.toString() === inventory_item_element.dataset.id.toString()) {
+                return;
+            }
+
+            selected_inventory_item = inventory_item_element.dataset.id.toString();
+
+            update_inventory();
+        });
+    }
+}
+
+update_inventory();
